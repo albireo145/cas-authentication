@@ -2,7 +2,9 @@ var url           = require('url'),
     http          = require('http'),
     https         = require('https'),
     parseXML      = require('xml2js').parseString,
-    XMLprocessors = require('xml2js/lib/processors');
+    XMLprocessors = require('xml2js/lib/processors'),
+    fs            = require('fs'),
+    path          = require('path')
 
 /**
  * The CAS authentication types.
@@ -168,6 +170,7 @@ function CASAuthentication(options) {
     this.bounce_redirect = this.bounce_redirect.bind(this);
     this.block           = this.block.bind(this);
     this.logout          = this.logout.bind(this);
+    this.logoutAjax      = this.logoutAjax.bind(this);
 }
 
 /**
@@ -250,8 +253,10 @@ CASAuthentication.prototype._login = function(req, res, next) {
     // Set up the query parameters.
     var query = {
         service: this.service_url + url.parse(req.url).pathname,
-        renew: this.renew
     };
+    if (this.renew) {
+        query.renew = this.renew
+    }
 
     // Redirect to the CAS login.
     res.redirect( this.cas_url + url.format({
@@ -283,6 +288,32 @@ CASAuthentication.prototype.logout = function(req, res, next) {
 
     // Redirect the client to the CAS logout.
     res.redirect(this.cas_url + '/logout');
+};
+
+/**
+ * Logout the currently logged in CAS user.
+ */
+CASAuthentication.prototype.logoutAjax = function(req, res, next) {
+
+    // Destroy the entire session if the option is set.
+    if (this.destroy_session) {
+        req.session.destroy(function(err) {
+            if (err) {
+                console.log(err);
+            }
+        });
+    }
+    // Otherwise, just destroy the CAS session variables.
+    else {
+        delete req.session[ this.session_name ];
+        if (this.session_info) {
+          delete req.session[ this.session_info ];
+        }
+    }
+
+    // Redirect the client to the CAS logout.
+    // res.redirect(this.cas_url + '/logout');
+    res.status(200).json({redirectUrl: this.cas_url + '/logout'})
 };
 
 /**
